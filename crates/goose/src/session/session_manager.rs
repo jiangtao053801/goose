@@ -1725,6 +1725,7 @@ impl SessionStorage {
                 cursor,
                 limit: Some(page_size + 1),
                 require_messages: true,
+                ..Default::default()
             })
             .await?;
         let has_next_page = sessions.len() > page_size;
