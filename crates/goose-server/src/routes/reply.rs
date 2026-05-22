@@ -209,9 +209,15 @@ async fn stream_event(
 )]
 pub async fn reply(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, ErrorResponse> {
     let session_start = std::time::Instant::now();
+
+    let client_id = headers
+        .get("x-client-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| if v.is_empty() { None } else { Some(v.to_string()) });
 
     tracing::info!(
         monotonic_counter.goose.session_starts = 1,
@@ -221,6 +227,20 @@ pub async fn reply(
     );
 
     let session_id = request.session_id.clone();
+
+    // Associate this session with the client if not already set
+    if let Some(ref cid) = client_id {
+        if let Ok(session) = state.session_manager().get_session(&session_id, false).await {
+            if session.client_id.is_none() {
+                let _ = state
+                    .session_manager()
+                    .update(&session_id)
+                    .client_id(Some(cid.clone()))
+                    .apply()
+                    .await;
+            }
+        }
+    }
 
     if let Some(recipe_name) = request.recipe_name.clone() {
         if state.mark_recipe_run_if_absent(&session_id).await {

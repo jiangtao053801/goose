@@ -19,7 +19,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 13;
+pub const CURRENT_SCHEMA_VERSION: i32 = 14;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -86,6 +86,8 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub client_id: Option<String>,
 }
 
 pub struct SessionUpdateBuilder<'a> {
@@ -112,6 +114,7 @@ pub struct SessionUpdateBuilder<'a> {
     archived_at: Option<Option<DateTime<Utc>>>,
 
     project_id: Option<Option<String>>,
+    client_id: Option<Option<String>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -146,6 +149,7 @@ impl<'a> SessionUpdateBuilder<'a> {
             goose_mode: None,
             archived_at: None,
             project_id: None,
+            client_id: None,
         }
     }
 
@@ -268,6 +272,11 @@ impl<'a> SessionUpdateBuilder<'a> {
         self.project_id = Some(project_id);
         self
     }
+
+    pub fn client_id(mut self, client_id: Option<String>) -> Self {
+        self.client_id = Some(client_id);
+        self
+    }
 }
 
 pub struct SessionManager {
@@ -290,6 +299,7 @@ pub(crate) struct SessionListPage {
 struct SessionListQuery<'a> {
     types: Option<&'a [SessionType]>,
     working_dir: Option<&'a Path>,
+    client_id: Option<&'a str>,
     cursor: Option<&'a SessionListCursor>,
     limit: Option<usize>,
     require_messages: bool,
@@ -333,6 +343,19 @@ impl SessionManager {
             .await
     }
 
+    pub async fn create_session_with_client(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+        goose_mode: GooseMode,
+        client_id: Option<String>,
+    ) -> Result<Session> {
+        self.storage
+            .create_session_with_client(working_dir, name, session_type, goose_mode, client_id)
+            .await
+    }
+
     pub async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
         self.storage.get_session(id, include_messages).await
     }
@@ -355,6 +378,16 @@ impl SessionManager {
 
     pub async fn list_sessions(&self) -> Result<Vec<Session>> {
         self.storage.list_sessions().await
+    }
+
+    pub async fn list_sessions_by_client(
+        &self,
+        types: &[SessionType],
+        client_id: Option<&str>,
+    ) -> Result<Vec<Session>> {
+        self.storage
+            .list_sessions_by_client(types, client_id)
+            .await
     }
 
     pub async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
@@ -542,6 +575,7 @@ impl Default for Session {
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            client_id: None,
         }
     }
 }
@@ -614,6 +648,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            client_id: row.try_get("client_id").ok().flatten(),
         })
     }
 }
@@ -731,9 +766,16 @@ impl SessionStorage {
                 model_config_json TEXT,
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
-                project_id TEXT
+                project_id TEXT,
+                client_id TEXT
             )
         "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(client_id)",
         )
         .execute(&mut *tx)
         .await?;
@@ -1166,6 +1208,25 @@ impl SessionStorage {
                         .await?;
                 }
             }
+            14 => {
+                // Add client_id column for multi-client session isolation.
+                let has_client_id = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'client_id'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_client_id {
+                    sqlx::query("ALTER TABLE sessions ADD COLUMN client_id TEXT")
+                        .execute(&mut **tx)
+                        .await?;
+                    sqlx::query(
+                        "CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(client_id)",
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                }
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1181,13 +1242,25 @@ impl SessionStorage {
         session_type: SessionType,
         goose_mode: GooseMode,
     ) -> Result<Session> {
+        self.create_session_with_client(working_dir, name, session_type, goose_mode, None)
+            .await
+    }
+
+    async fn create_session_with_client(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+        goose_mode: GooseMode,
+        client_id: Option<String>,
+    ) -> Result<Session> {
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
         let session = sqlx::query_as(
             r#"
-                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode, client_id)
                 VALUES (
                     ? || '_' || CAST(COALESCE((
                         SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
@@ -1199,6 +1272,7 @@ impl SessionStorage {
                     ?,
                     ?,
                     '{}',
+                    ?,
                     ?
                 )
                 RETURNING *
@@ -1210,6 +1284,7 @@ impl SessionStorage {
             .bind(session_type.to_string())
             .bind(&*working_dir.to_string_lossy())
             .bind(goose_mode.to_string())
+            .bind(&client_id)
             .fetch_one(&mut *tx)
             .await?;
 
@@ -1297,6 +1372,7 @@ impl SessionStorage {
         add_update!(builder.archived_at, "archived_at");
 
         add_update!(builder.project_id, "project_id");
+        add_update!(builder.client_id, "client_id");
 
         if updates.is_empty() {
             return Ok(());
@@ -1374,6 +1450,10 @@ impl SessionStorage {
 
         if let Some(ref project_id) = builder.project_id {
             q = q.bind(project_id.as_ref());
+        }
+
+        if let Some(ref client_id) = builder.client_id {
+            q = q.bind(client_id.as_ref());
         }
 
         let pool = self.pool().await?;
@@ -1524,6 +1604,9 @@ impl SessionStorage {
         if options.working_dir.is_some() {
             where_clauses.push("s.working_dir = ?".to_string());
         }
+        if options.client_id.is_some() {
+            where_clauses.push("(s.client_id IS NULL OR s.client_id = ?)".to_string());
+        }
         if options.cursor.is_some() {
             where_clauses.push(
                 "(datetime(s.updated_at) < datetime(?) \
@@ -1561,7 +1644,7 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id,
+                   s.archived_at, s.project_id, s.client_id,
                    COUNT(m.id) as message_count
             FROM sessions s
             {}
@@ -1582,6 +1665,9 @@ impl SessionStorage {
         if let Some(working_dir) = options.working_dir {
             q = q.bind(working_dir.to_string_lossy().to_string());
         }
+        if let Some(client_id) = options.client_id {
+            q = q.bind(client_id);
+        }
         if let Some(cursor) = options.cursor {
             let updated_at = cursor.updated_at.to_rfc3339();
             // Normalize mixed SQLite CURRENT_TIMESTAMP and RFC3339 stored values.
@@ -1595,6 +1681,19 @@ impl SessionStorage {
 
         let pool = self.pool().await?;
         q.fetch_all(pool).await.map_err(Into::into)
+    }
+
+    async fn list_sessions_by_client(
+        &self,
+        types: &[SessionType],
+        client_id: Option<&str>,
+    ) -> Result<Vec<Session>> {
+        self.list_sessions_matching(SessionListQuery {
+            types: Some(types),
+            client_id,
+            ..Default::default()
+        })
+        .await
     }
 
     async fn list_sessions_by_types(&self, types: Option<&[SessionType]>) -> Result<Vec<Session>> {

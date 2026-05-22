@@ -41,12 +41,22 @@ function handleIntlError(err: { code: string; message?: string }) {
       window.alert('failed to start goose backend process');
       return;
     }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Secret-Key': await window.electron.getSecretKey(),
+    };
+    // Include client identifier for session isolation when using external server
+    try {
+      const externalGoosed = await window.electron.getSetting('externalGoosed');
+      if (externalGoosed?.enabled && externalGoosed.clientId) {
+        headers['X-Client-Id'] = externalGoosed.clientId;
+      }
+    } catch {
+      // settings key not available — skip client-id header
+    }
     client.setConfig({
       baseUrl: gooseApiHost,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': await window.electron.getSecretKey(),
-      },
+      headers,
     });
 
     try {

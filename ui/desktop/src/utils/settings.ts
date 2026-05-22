@@ -3,6 +3,10 @@ export interface ExternalGoosedConfig {
   url: string;
   secret: string;
   certFingerprint?: string;
+  /** Client identifier for multi-client session isolation.
+   *  Each connected desktop instance should use a unique clientId
+   *  so sessions are only visible to their owning client. */
+  clientId?: string;
 }
 
 export interface KeyboardShortcuts {

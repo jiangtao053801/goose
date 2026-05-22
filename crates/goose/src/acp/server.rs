@@ -2542,6 +2542,7 @@ impl GooseAcpAgent {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+
         // When _meta.client is set, the session is created by a known client
         // (e.g. "goose" for the desktop app) and treated as a User session.
         // Without it, sessions default to Acp for programmatic ACP clients.
@@ -2555,14 +2556,24 @@ impl GooseAcpAgent {
             None => SessionType::Acp,
         };
 
+        // Extract a client identifier for multi-client session isolation.
+        // ACP clients may pass _meta.clientId to identify themselves.
+        let client_id = args
+            .meta
+            .as_ref()
+            .and_then(|m| m.get("clientId"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         let t0 = std::time::Instant::now();
         let goose_session = self
             .session_manager
-            .create_session(
+            .create_session_with_client(
                 args.cwd.clone(),
                 "New Chat".to_string(),
                 session_type,
                 self.goose_mode,
+                client_id,
             )
             .await
             .internal_err_ctx("Failed to create session")?;
@@ -4473,6 +4484,7 @@ print(\"hello, world\")
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            client_id: None,
         }
     }
 

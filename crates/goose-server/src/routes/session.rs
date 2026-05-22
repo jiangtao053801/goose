@@ -2,6 +2,7 @@ use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
 use crate::state::AppState;
 use axum::extract::{DefaultBodyLimit, State};
+use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -104,10 +105,19 @@ const MAX_NAME_LENGTH: usize = 200;
 )]
 async fn list_sessions(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
 ) -> Result<Json<SessionListResponse>, StatusCode> {
+    let client_id = headers
+        .get("x-client-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| if v.is_empty() { None } else { Some(v) });
+
     let sessions = state
         .session_manager()
-        .list_sessions()
+        .list_sessions_by_client(
+            &[SessionType::User, SessionType::Scheduled, SessionType::Gateway],
+            client_id,
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -667,6 +677,7 @@ fn default_limit() -> usize {
 async fn search_sessions(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<SearchSessionsQuery>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<Session>>, StatusCode> {
     let query = params.query.trim();
     if query.is_empty() {
@@ -684,6 +695,11 @@ async fn search_sessions(
         .before_date
         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
         .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    let client_id = headers
+        .get("x-client-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| if v.is_empty() { None } else { Some(v) });
 
     let search_results = state
         .session_manager()
@@ -707,7 +723,10 @@ async fn search_sessions(
 
     let all_sessions = state
         .session_manager()
-        .list_sessions()
+        .list_sessions_by_client(
+            &[SessionType::User, SessionType::Scheduled, SessionType::Gateway],
+            client_id,
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
