@@ -1,6 +1,7 @@
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
+#[allow(dead_code)]
 pub(super) fn compact_tools_json(tools: &[Tool]) -> Option<String> {
     let compact: Vec<Value> = tools
         .iter()

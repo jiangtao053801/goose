@@ -27,7 +27,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::Request,
-    http::StatusCode,
+    http::{Method, StatusCode},
     middleware::{self, Next},
     response::Response,
     Router,
@@ -36,6 +36,11 @@ use axum::{
 // Function to configure all routes
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
     async fn require_local_admin(request: Request, next: Next) -> Result<Response, StatusCode> {
+        // Allow read-only operations (GET) for remote clients
+        if request.method() == Method::GET {
+            return Ok(next.run(request).await);
+        }
+
         let is_remote = request
             .headers()
             .get("x-client-id")

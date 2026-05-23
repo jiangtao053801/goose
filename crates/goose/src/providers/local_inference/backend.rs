@@ -8,10 +8,12 @@ use crate::providers::utils::RequestLog;
 
 use super::{ResolvedModelPaths, StreamSender};
 
+#[allow(dead_code)]
 pub(super) trait BackendLoadedModel: Send {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+#[allow(dead_code)]
 pub(super) struct LocalGenerationRequest<'a> {
     pub model_name: String,
     pub system: &'a str,

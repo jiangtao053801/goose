@@ -5,6 +5,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::errors::ProviderError;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ExtractedImage {
     pub bytes: Vec<u8>,
 }
@@ -82,6 +83,7 @@ pub fn extract_images_from_messages_json(
 
 /// Scan messages for `MessageContent::Image` entries. Return the extracted image
 /// bytes and a new message list with images replaced by text marker placeholders.
+#[allow(dead_code)]
 pub fn extract_images_from_messages(
     messages: &[Message],
     marker: &str,
