@@ -9,6 +9,7 @@ import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
 import { applyThemeTokens } from './theme/theme-tokens';
 import { currentLocale, currentMessageLocale, loadMessages } from './i18n';
+import { toast } from 'react-toastify';
 
 // Apply theme tokens to :root before first paint.
 applyThemeTokens();
@@ -57,6 +58,23 @@ function handleIntlError(err: { code: string; message?: string }) {
     client.setConfig({
       baseUrl: gooseApiHost,
       headers,
+    });
+
+    // Show a toast when remote clients attempt admin operations (403 Forbidden)
+    client.interceptors.response.fns.push(async (response, _request) => {
+      if (response.status === 403) {
+        toast.warning(
+          <div>
+            <strong className="font-medium">No Permission</strong>
+            <div>
+              Management features (recipes, extensions, settings, etc.) are only
+              available on the server machine. Connect directly to manage.
+            </div>
+          </div>,
+          { autoClose: 8000 }
+        );
+      }
+      return response;
     });
 
     try {
