@@ -1605,7 +1605,7 @@ impl SessionStorage {
             where_clauses.push("s.working_dir = ?".to_string());
         }
         if options.client_id.is_some() {
-            where_clauses.push("(s.client_id IS NULL OR s.client_id = ?)".to_string());
+            where_clauses.push("s.client_id = ?".to_string());
         }
         if options.cursor.is_some() {
             where_clauses.push(
