@@ -319,7 +319,7 @@ pub struct ShellTool {
 }
 
 impl ShellTool {
-    pub fn new(_use_login_shell_path: bool) -> std::io::Result<Self> {
+    pub fn new(use_login_shell_path: bool) -> std::io::Result<Self> {
         Ok(Self {
             output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
