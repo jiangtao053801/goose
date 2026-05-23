@@ -196,6 +196,7 @@ pub struct RestartAgentResponse {
 #[allow(clippy::too_many_lines)]
 async fn start_agent(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
     #[cfg(feature = "telemetry")]
@@ -242,16 +243,22 @@ async fn start_agent(
 
     let name = "New Chat".to_string();
 
+    let client_id = headers
+        .get("x-client-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| if v.is_empty() { None } else { Some(v.to_string()) });
+
     let manager = state.session_manager();
     let config = Config::global();
     let current_mode = config.get_goose_mode().unwrap_or_default();
 
     let mut session = manager
-        .create_session(
+        .create_session_with_client(
             PathBuf::from(&working_dir),
             name,
             SessionType::User,
             current_mode,
+            client_id,
         )
         .await
         .map_err(|err| {

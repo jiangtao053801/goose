@@ -41,6 +41,18 @@ const i18n = defineMessages({
     id: 'externalBackendSection.secretKeyHelp',
     defaultMessage: 'The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)',
   },
+  clientId: {
+    id: 'externalBackendSection.clientId',
+    defaultMessage: 'Client ID (optional)',
+  },
+  clientIdPlaceholder: {
+    id: 'externalBackendSection.clientIdPlaceholder',
+    defaultMessage: 'Unique identifier for this client',
+  },
+  clientIdHelp: {
+    id: 'externalBackendSection.clientIdHelp',
+    defaultMessage: 'Used for session isolation on shared servers. Each client sees only its own sessions. Leave empty to share sessions with all clients.',
+  },
   certFingerprint: {
     id: 'externalBackendSection.certFingerprint',
     defaultMessage: 'Certificate Fingerprint (optional)',
@@ -198,6 +210,25 @@ export default function ExternalBackendSection() {
                 />
                 <p className="text-xs text-text-secondary">
                   {intl.formatMessage(i18n.secretKeyHelp)}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="external-client-id" className="text-text-primary text-xs">
+                  {intl.formatMessage(i18n.clientId)}
+                </label>
+                <Input
+                  id="external-client-id"
+                  type="text"
+                  placeholder={intl.formatMessage(i18n.clientIdPlaceholder)}
+                  value={config.clientId || ''}
+                  onChange={(e) => updateField('clientId', e.target.value)}
+                  onBlur={() => saveConfig(config)}
+                  disabled={isSaving}
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.clientIdHelp)}
                 </p>
               </div>
 

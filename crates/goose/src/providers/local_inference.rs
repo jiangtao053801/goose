@@ -1,6 +1,5 @@
 mod backend;
 pub mod hf_models;
-mod llamacpp;
 pub mod local_model_registry;
 pub(crate) mod multimodal;
 mod tool_parsing;
@@ -18,7 +17,6 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use backend::{BackendLoadedModel, LocalInferenceBackend};
 use futures::future::BoxFuture;
-use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -62,34 +60,25 @@ impl InferenceRuntime {
         if let Some(runtime) = guard.upgrade() {
             return Ok(runtime);
         }
-        let llamacpp_backend: Arc<dyn LocalInferenceBackend> = Arc::new(LlamaCppBackend::new()?);
-        let mut backends = HashMap::new();
-        backends.insert(LLAMACPP_BACKEND_ID, llamacpp_backend);
         let runtime = Arc::new(Self {
             models: StdMutex::new(HashMap::new()),
-            backends,
+            backends: HashMap::new(),
         });
         *guard = Arc::downgrade(&runtime);
         Ok(runtime)
     }
 
-    fn default_backend(&self) -> &dyn LocalInferenceBackend {
-        self.backends
-            .get(LLAMACPP_BACKEND_ID)
-            .expect("default local inference backend registered")
-            .as_ref()
+    fn default_backend(&self) -> Option<&dyn LocalInferenceBackend> {
+        self.backends.values().next().map(|b| b.as_ref())
     }
 
     fn backend_for_model(
         &self,
         _resolved: &ResolvedModelPaths,
     ) -> Result<Arc<dyn LocalInferenceBackend>, ProviderError> {
-        self.backends
-            .get(LLAMACPP_BACKEND_ID)
-            .cloned()
-            .ok_or_else(|| {
-                ProviderError::ExecutionError("Local inference backend unavailable".to_string())
-            })
+        self.backends.values().next().cloned().ok_or_else(|| {
+            ProviderError::ExecutionError("Local inference backend unavailable".to_string())
+        })
     }
 
     fn get_or_create_model_slot(&self, key: ModelCacheKey) -> ModelSlot {
@@ -152,7 +141,10 @@ fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
 }
 
 pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
-    runtime.default_backend().available_memory_bytes()
+    runtime
+        .default_backend()
+        .map(|b| b.available_memory_bytes())
+        .unwrap_or(0)
 }
 
 pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
@@ -169,13 +161,15 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
         models.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
 
         // Return largest that fits in available memory
-        for model in &models {
-            if available_memory >= model.size_bytes {
-                return model.id.clone();
+        if available_memory > 0 {
+            for model in &models {
+                if available_memory >= model.size_bytes {
+                    return model.id.clone();
+                }
             }
         }
 
-        // If nothing fits, return smallest
+        // If nothing fits or no backends, return smallest
         if let Some(smallest) = models.last() {
             return smallest.id.clone();
         }
@@ -196,7 +190,7 @@ fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
 }
 
 /// Remove `image_url` content parts from OpenAI-format messages JSON, replacing
-/// each with a text note. This prevents an FFI crash in llama.cpp which does not
+/// each with a text note. This prevents issues with backends that do not
 /// accept `image_url` content-part types.
 fn strip_image_parts_from_messages(messages: &mut [Value]) {
     let mut stripped = false;
@@ -365,7 +359,7 @@ impl ProviderDef for LocalInferenceProvider {
         ProviderMetadata::new(
             PROVIDER_NAME,
             "Local Inference",
-            "Local inference using quantized GGUF models (llama.cpp)",
+            "Local inference using quantized GGUF models",
             DEFAULT_MODEL,
             known_models,
             "https://github.com/utilityai/llama-cpp-rs",

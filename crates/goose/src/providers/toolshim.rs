@@ -72,9 +72,9 @@ enum ToolshimBackend {
 fn parse_toolshim_backend(value: &str) -> Result<ToolshimBackend, ProviderError> {
     match value.trim().to_ascii_lowercase().as_str() {
         "" | "ollama" => Ok(ToolshimBackend::Ollama),
-        "local" | "llama.cpp" | "llama_cpp" => Ok(ToolshimBackend::Local),
+        "local" => Ok(ToolshimBackend::Local),
         other => Err(ProviderError::RequestFailed(format!(
-            "Invalid {} value '{}'. Expected one of: ollama, local, llama.cpp",
+            "Invalid {} value '{}'. Expected one of: ollama, local",
             TOOLSHIM_BACKEND_ENV_VAR, other
         ))),
     }

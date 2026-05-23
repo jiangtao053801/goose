@@ -32,7 +32,6 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
-    "dep:llama-cpp-2",
     "dep:tokenizers",
     "dep:symphonia",
     "dep:rubato",
@@ -44,8 +43,8 @@ aws-providers = [
     "dep:aws-sdk-bedrockruntime",
     "dep:aws-sdk-sagemakerruntime",
 ]
-cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
-vulkan = ["local-inference", "llama-cpp-2/vulkan"]
+cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda"]
+vulkan = ["local-inference"]
 rustls-tls = [
     "dep:rustls",
     "reqwest/rustls",
@@ -193,7 +192,6 @@ tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = { version = "^0.3.0", optional = true }
 pulldown-cmark = "0.13.0"
-llama-cpp-2 = { version = "0.1.145", features = ["sampler", "mtmd"], optional = true }
 encoding_rs = "0.8.35"
 pastey = "0.2.2"
 shell-words = { workspace = true }
@@ -219,7 +217,6 @@ keyring = { version = "3.6.2", features = ["windows-native"], optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.10.2", default-features = false, features = ["metal"], optional = true }
 candle-nn = { version = "0.10.2", default-features = false, features = ["metal"], optional = true }
-llama-cpp-2 = { version = "0.1.145", features = ["sampler", "metal", "mtmd"], optional = true }
 keyring = { version = "3.6.2", features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
