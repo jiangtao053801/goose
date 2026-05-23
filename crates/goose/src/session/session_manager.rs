@@ -414,9 +414,9 @@ impl SessionManager {
         self.storage.delete_session(id).await
     }
 
-    pub async fn get_insights(&self) -> Result<SessionInsights> {
+    pub async fn get_insights(&self, client_id: Option<&str>) -> Result<SessionInsights> {
         self.storage
-            .get_insights(&[SessionType::User, SessionType::Scheduled])
+            .get_insights(&[SessionType::User, SessionType::Scheduled], client_id)
             .await
     }
 
@@ -1781,7 +1781,7 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn get_insights(&self, types: &[SessionType]) -> Result<SessionInsights> {
+    async fn get_insights(&self, types: &[SessionType], client_id: Option<&str>) -> Result<SessionInsights> {
         if types.is_empty() {
             return Ok(SessionInsights {
                 total_sessions: 0,
@@ -1790,7 +1790,7 @@ impl SessionStorage {
         }
 
         let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
-        let query = format!(
+        let mut query = format!(
             r#"
             SELECT COUNT(*) as total_sessions,
                    COALESCE(SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)), 0) as total_tokens
@@ -1799,11 +1799,17 @@ impl SessionStorage {
             "#,
             placeholders
         );
+        if client_id.is_some() {
+            query.push_str(" AND client_id = ?");
+        }
 
         let pool = self.pool().await?;
         let mut q = sqlx::query_as::<_, (i64, Option<i64>)>(&query);
         for t in types {
             q = q.bind(t.to_string());
+        }
+        if let Some(cid) = client_id {
+            q = q.bind(cid);
         }
 
         let row = q.fetch_one(pool).await?;
@@ -2394,7 +2400,7 @@ mod tests {
             assert!(session.name.starts_with("Updated session"));
         }
 
-        let insights = session_manager.get_insights().await.unwrap();
+        let insights = session_manager.get_insights(None).await.unwrap();
         assert_eq!(insights.total_sessions, NUM_CONCURRENT_SESSIONS as usize);
         let expected_tokens = 100 * NUM_CONCURRENT_SESSIONS * (NUM_CONCURRENT_SESSIONS - 1) / 2;
         assert_eq!(insights.total_tokens, expected_tokens as i64);

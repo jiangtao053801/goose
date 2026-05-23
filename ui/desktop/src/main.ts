@@ -93,11 +93,11 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'New Chat Window': '新建聊天窗口',
   'Open Directory...': '打开目录…',
   'Recent Directories': '最近的目录',
-  'Focus Goose Window': '聚焦 Goose 窗口',
+  'Focus Goose Window': '聚焦 专报通 窗口',
   'Quick Launcher': '快速启动器',
   'Always on Top': '窗口置顶',
   'Toggle Navigation': '切换导航',
-  'About Goose': '关于 Goose',
+  'About Goose': '关于 专报通 ',
   // Electron's default role-based labels we want to translate as well.
   // (The menu role itself still provides the correct behaviour; only the
   // display string is overridden.)
@@ -123,7 +123,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Bring All to Front': '全部置于最前',
   'Emoji & Symbols': '表情符号',
   'Start Dictation…': '开始听写…',
-  'Hide Goose': '隐藏 Goose',
+  'Hide Goose ': '隐藏 专报通 ',
   'Hide Others': '隐藏其他',
   'Show All': '全部显示',
   Services: '服务',
@@ -2366,7 +2366,7 @@ async function appMain() {
 
       // Create the About Goose menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: menuT('About Goose'),
+        label: menuT('About 专报通 '),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 

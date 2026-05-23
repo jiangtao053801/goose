@@ -168,10 +168,16 @@ async fn get_session(
 )]
 async fn get_session_insights(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
 ) -> Result<Json<SessionInsights>, StatusCode> {
+    let client_id = headers
+        .get("x-client-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| if v.is_empty() { None } else { Some(v) });
+
     let insights = state
         .session_manager()
-        .get_insights()
+        .get_insights(client_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(insights))

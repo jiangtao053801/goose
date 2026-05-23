@@ -442,7 +442,7 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
     );
 
     let session_manager = SessionManager::instance();
-    if let Ok(insights) = session_manager.get_insights().await {
+    if let Ok(insights) = session_manager.get_insights(None).await {
         insert(&mut props, "total_sessions", insights.total_sessions as u64);
         insert(&mut props, "total_tokens", insights.total_tokens as u64);
     }
