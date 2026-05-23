@@ -31,7 +31,7 @@ export const Header = React.memo(function Header({
     <Box flexDirection="column" width={constrainedWidth} flexShrink={0}>
       <Box justifyContent="space-between" width={constrainedWidth}>
         <Box width={leftSideWidth}>
-          <Text color={TEXT_PRIMARY} bold>专报通</Text>
+          <Text color={TEXT_PRIMARY} bold>Goose</Text>
           <Text color={RULE_COLOR}> · </Text>
           <Box flexShrink={1}>
             <Text color={statusColor} wrap="truncate-end">{status}</Text>

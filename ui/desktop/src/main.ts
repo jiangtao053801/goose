@@ -626,7 +626,7 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: '专报通',
+      title: 'Goose',
       body: `Could not open directory: ${path.basename(filePath)}`,
     }).show();
   }
@@ -928,7 +928,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     } else {
       dialog.showMessageBoxSync({
         type: 'error',
-        title: '专报通 启动失败',
+        title: 'Goose 启动失败',
         message: '后端服务启动失败。',
         detail: failureDetailParts.join('\n\n'),
         buttons: ['OK'],

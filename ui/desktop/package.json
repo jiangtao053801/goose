@@ -1,8 +1,8 @@
 {
   "name": "zhuanbaotong-app",
-  "productName": "专报通",
+  "productName": "Goose",
   "version": "1.35.0",
-  "description": "专报通 App",
+  "description": "Goose App",
   "engines": {
     "node": "^24.10.0",
     "pnpm": ">=10.30.0"

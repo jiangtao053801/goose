@@ -242,7 +242,7 @@ export const ProviderSelector = React.memo(function ProviderSelector({ providers
       <Box marginTop={1} />
       <Box justifyContent="center" marginBottom={1}>
         <Text color={TEXT_PRIMARY} bold>
-          {title ?? "◆ 欢迎使用 专报通 ◆"}
+          {title ?? "◆ 欢迎使用 Goose ◆"}
         </Text>
       </Box>
       <Box justifyContent="center" marginBottom={2}>
