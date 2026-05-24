@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::{get, post},
     Router,
 };
@@ -47,15 +47,14 @@ async fn upload_file(
             .file_name()
             .unwrap_or("unnamed")
             .to_string();
-        let data = field
-            .bytes()
-            .await
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
-
         let content_type = field
             .content_type()
             .map(|s| s.to_string())
             .unwrap_or_else(|| mime_guess::from_path(&file_name).first_or_octet_stream().to_string());
+        let data = field
+            .bytes()
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
 
         // Sanitize filename and add timestamp to avoid collisions
         let safe_name = sanitize_filename::sanitize(&file_name);
