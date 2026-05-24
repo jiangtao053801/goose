@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use goose::config::paths::Paths;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::state::AppState;
@@ -31,7 +31,7 @@ async fn upload_file(
     let safe_client = sanitize_filename::sanitize(client_id);
     let safe_session = sanitize_filename::sanitize(session_id);
 
-    let upload_dir = Paths::data_dir()
+    let upload_dir = PathBuf::from("/data")
         .join("uploads")
         .join(&safe_client)
         .join(&safe_session);
@@ -103,7 +103,7 @@ async fn upload_file(
         .body(Body::from(serde_json::to_string(&serde_json::json!({
             "files": uploaded,
             "storage": {
-                "root": Paths::data_dir().join("uploads").to_string_lossy(),
+                "root": PathBuf::from("/data").join("uploads").to_string_lossy(),
                 "structure": "uploads/{client_id}/{session_id}/{timestamp}_{filename}",
                 "access_url": "/files/uploads/{client_id}/{session_id}/{timestamp}_{filename}"
             }
@@ -125,7 +125,7 @@ async fn download_file(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let full_path = Paths::data_dir().join(&file_path);
+    let full_path = PathBuf::from("/data").join(&file_path);
 
     if !full_path.exists() {
         return Err(StatusCode::NOT_FOUND);

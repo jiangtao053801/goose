@@ -5,8 +5,6 @@ use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::config::paths::Paths;
-
 const NO_MATCH_PREVIEW_LINES: usize = 20;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -87,7 +85,7 @@ impl EditTools {
         let is_new = !path.exists();
 
         // Check if file is under uploads directory (for download URL)
-        let uploads_root = Paths::data_dir().join("uploads");
+        let uploads_root = PathBuf::from("/data/uploads");
         let is_under_uploads = path.starts_with(&uploads_root);
         let download_path = if is_under_uploads {
             path.strip_prefix(&uploads_root).ok().map(|p| p.display().to_string())

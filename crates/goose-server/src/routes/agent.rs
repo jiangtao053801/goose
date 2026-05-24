@@ -18,7 +18,6 @@ use base64::Engine;
 use goose::agents::reply_parts::is_tool_visible_to_app;
 use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::paths::Paths;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::providers::create;
@@ -255,7 +254,7 @@ async fn start_agent(
     let current_mode = config.get_goose_mode().unwrap_or_default();
 
     // Force all generated files to /data/uploads/{client_id}/
-    let forced_working_dir = Paths::data_dir()
+    let forced_working_dir = PathBuf::from("/data")
         .join("uploads")
         .join(client_id.as_deref().unwrap_or("unknown"));
     fs::create_dir_all(&forced_working_dir).map_err(|err| {
