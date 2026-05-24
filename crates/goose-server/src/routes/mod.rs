@@ -4,6 +4,7 @@ pub mod config_management;
 pub mod dictation;
 pub mod errors;
 pub mod features;
+pub mod files;
 pub mod gateway;
 #[cfg(feature = "local-inference")]
 pub mod local_inference;
@@ -48,7 +49,8 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(session_events::routes(state.clone()))
         .merge(sampling::routes(state.clone()))
         .merge(dictation::routes(state.clone()))
-        .merge(features::routes());
+        .merge(features::routes())
+        .merge(files::routes(state.clone()));
 
     #[cfg(feature = "local-inference")]
     let router = router.merge(local_inference::routes(state));
