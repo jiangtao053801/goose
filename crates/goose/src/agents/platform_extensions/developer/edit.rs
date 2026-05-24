@@ -5,6 +5,8 @@ use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+use crate::config::paths::Paths;
+
 const NO_MATCH_PREVIEW_LINES: usize = 20;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -84,13 +86,27 @@ impl EditTools {
 
         let is_new = !path.exists();
 
+        // Check if file is under uploads directory (for download URL)
+        let uploads_root = Paths::data_dir().join("uploads");
+        let is_under_uploads = path.starts_with(&uploads_root);
+        let download_path = if is_under_uploads {
+            path.strip_prefix(&uploads_root).ok().map(|p| p.display().to_string())
+        } else {
+            None
+        };
+
         match fs::write(path, &params.content) {
             Ok(()) => {
                 let line_count = params.content.lines().count();
                 let action = if is_new { "Created" } else { "Wrote" };
+
+                let download_msg = download_path.map_or(String::new(), |rel| {
+                    format!("\n\nDownload: https://fsd.ecbao.cn/downloads/{}", rel)
+                });
+
                 CallToolResult::success(vec![Content::text(format!(
-                    "{} {} ({} lines)",
-                    action, params.path, line_count
+                    "{} {} ({} lines){}",
+                    action, params.path, line_count, download_msg
                 ))
                 .with_priority(0.0)])
             }
