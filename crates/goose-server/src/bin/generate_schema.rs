@@ -14,16 +14,25 @@ fn main() {
         .join("desktop")
         .join("openapi.json");
 
-    // Ensure parent directory exists
+    // Try to write schema file; non-fatal if permission denied
     if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).unwrap();
+        let _ = fs::create_dir_all(parent);
     }
-
-    fs::write(&output_path, format!("{schema}\n")).unwrap();
-    eprintln!(
-        "Successfully generated OpenAPI schema at {}",
-        output_path.canonicalize().unwrap().display()
-    );
+    match fs::write(&output_path, format!("{schema}\n")) {
+        Ok(()) => {
+            eprintln!(
+                "Successfully generated OpenAPI schema at {}",
+                output_path.canonicalize().unwrap_or_else(|_| output_path.clone()).display()
+            );
+        }
+        Err(e) => {
+            eprintln!(
+                "Warning: Could not write OpenAPI schema to {}: {}",
+                output_path.display(),
+                e
+            );
+        }
+    }
 
     // Output the schema to stdout for piping
     println!("{}", schema);
