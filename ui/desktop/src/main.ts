@@ -50,7 +50,8 @@ import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
 import * as mesh from './mesh';
-import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+const REACT_DEVELOPER_TOOLS = 'fmkadmapgofadopljbjfkapdkoienihi';
+let installExtension: ((...args: any[]) => Promise<any>) | undefined;
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
 
@@ -861,12 +862,21 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   });
 
   if (!app.isPackaged) {
-    installExtension(REACT_DEVELOPER_TOOLS, {
-      loadExtensionOptions: { allowFileAccess: true },
-      session: mainWindow.webContents.session,
-    })
-      .then(() => log.info('added react dev tools'))
-      .catch((err) => log.info('failed to install react dev tools:', err));
+    try {
+      // 动态加载 devtools-installer，避免 Vite SSR 的 CJS interop 问题
+      if (!installExtension) {
+        const mod = require('electron-devtools-installer');
+        installExtension = mod.default || mod.installExtension || mod;
+      }
+      installExtension(REACT_DEVELOPER_TOOLS, {
+        loadExtensionOptions: { allowFileAccess: true },
+        session: mainWindow.webContents.session,
+      })
+        .then(() => log.info('added react dev tools'))
+        .catch((err) => log.info('devtools install failed (non-fatal):', err.message || err));
+    } catch (err) {
+      log.info('devtools install error (non-fatal):', (err as Error).message || err);
+    }
   }
 
   // Re-create the client with Electron's net.fetch so requests to the local
@@ -2366,7 +2376,7 @@ async function appMain() {
 
       // Create the About Goose menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: menuT('About 专报通 '),
+        label: menuT('About Goose'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
