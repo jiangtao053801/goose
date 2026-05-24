@@ -18,6 +18,7 @@ use base64::Engine;
 use goose::agents::reply_parts::is_tool_visible_to_app;
 use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
+use goose::config::paths::Paths;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::providers::create;
@@ -252,9 +253,21 @@ async fn start_agent(
     let config = Config::global();
     let current_mode = config.get_goose_mode().unwrap_or_default();
 
+    // Force all generated files to /data/uploads/{client_id}/
+    let forced_working_dir = Paths::data_dir()
+        .join("uploads")
+        .join(client_id.as_deref().unwrap_or("unknown"));
+    fs::create_dir_all(&forced_working_dir).map_err(|err| {
+        error!("Failed to create working directory: {}", err);
+        ErrorResponse {
+            message: format!("Failed to create working directory: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    })?;
+
     let mut session = manager
         .create_session_with_client(
-            PathBuf::from(&working_dir),
+            forced_working_dir,
             name,
             SessionType::User,
             current_mode,
