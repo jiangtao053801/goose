@@ -27,9 +27,15 @@ pub mod utils;
 use std::sync::Arc;
 
 use axum::Router;
+use tower_http::cors::{Any, CorsLayer};
 
 // Function to configure all routes
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let router = Router::new()
         .merge(status::routes(state.clone()))
         .merge(reply::routes(state.clone()))
@@ -50,7 +56,8 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(sampling::routes(state.clone()))
         .merge(dictation::routes(state.clone()))
         .merge(features::routes())
-        .merge(files::routes(state.clone()));
+        .merge(files::routes(state.clone()))
+        .layer(cors);
 
     #[cfg(feature = "local-inference")]
     let router = router.merge(local_inference::routes(state));

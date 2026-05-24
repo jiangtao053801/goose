@@ -7,17 +7,35 @@ use axum::{
     Router,
 };
 use goose::config::paths::Paths;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::state::AppState;
 
-/// POST /upload — accept file, save to data/uploads/, return temp URL
+/// POST /upload — accept file, save to data/uploads/{client_id}/{session_id}/, return URL
 async fn upload_file(
     State(_state): State<Arc<AppState>>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Response, StatusCode> {
-    let upload_dir = Paths::data_dir().join("uploads");
+    // Extract client_id and session_id from headers
+    let client_id = headers
+        .get("X-Client-Id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let session_id = headers
+        .get("X-Session-Id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+
+    // Sanitize path segments
+    let safe_client = sanitize_filename::sanitize(client_id);
+    let safe_session = sanitize_filename::sanitize(session_id);
+
+    let upload_dir = Paths::data_dir()
+        .join("uploads")
+        .join(&safe_client)
+        .join(&safe_session);
+
     tokio::fs::create_dir_all(&upload_dir)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -34,11 +52,17 @@ async fn upload_file(
             .await
             .map_err(|_| StatusCode::BAD_REQUEST)?;
 
+        let content_type = field
+            .content_type()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| mime_guess::from_path(&file_name).first_or_octet_stream().to_string());
+
         // Sanitize filename and add timestamp to avoid collisions
         let safe_name = sanitize_filename::sanitize(&file_name);
+        let now = chrono::Utc::now();
         let dest_name = format!(
             "{}_{}",
-            chrono::Utc::now().format("%Y%m%d%H%M%S"),
+            now.format("%Y%m%d%H%M%S"),
             safe_name
         );
         let dest_path = upload_dir.join(&dest_name);
@@ -47,11 +71,26 @@ async fn upload_file(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+        // Human-readable size
+        let size_human = if data.len() < 1024 {
+            format!("{} B", data.len())
+        } else if data.len() < 1024 * 1024 {
+            format!("{:.1} KB", data.len() as f64 / 1024.0)
+        } else {
+            format!("{:.1} MB", data.len() as f64 / (1024.0 * 1024.0))
+        };
+
         uploaded.push(serde_json::json!({
             "original_name": file_name,
             "saved_name": dest_name,
-            "path": format!("/files/uploads/{}", dest_name),
+            "path": format!("/files/uploads/{}/{}/{}", safe_client, safe_session, dest_name),
             "size": data.len(),
+            "size_human": size_human,
+            "mime": content_type,
+            "client_id": safe_client,
+            "session_id": safe_session,
+            "server_abs_path": dest_path.to_string_lossy(),
+            "uploaded_at": now.to_rfc3339(),
         }));
     }
 
@@ -63,7 +102,12 @@ async fn upload_file(
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(serde_json::to_string(&serde_json::json!({
-            "files": uploaded
+            "files": uploaded,
+            "storage": {
+                "root": Paths::data_dir().join("uploads").to_string_lossy(),
+                "structure": "uploads/{client_id}/{session_id}/{timestamp}_{filename}",
+                "access_url": "/files/uploads/{client_id}/{session_id}/{timestamp}_{filename}"
+            }
         })).unwrap()))
         .unwrap())
 }
@@ -92,24 +136,18 @@ async fn download_file(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let metadata = tokio::fs::metadata(&full_path)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
     let mime = mime_guess::from_path(&full_path)
         .first_or_octet_stream();
 
-    // Read the file
     let file_data = tokio::fs::read(&full_path)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Check for range header
+    // Check for range header (supports video seeking, large file partial download)
     let range_header = headers.get(header::RANGE);
     let (status, data, content_length) = if let Some(range_str) = range_header
         .and_then(|v| v.to_str().ok())
     {
-        // Simple range: bytes=start-end
         let range = parse_range(range_str, file_data.len() as u64);
         let start = range.0 as usize;
         let end = range.1 as usize;
